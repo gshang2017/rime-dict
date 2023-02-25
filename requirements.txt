@@ -1,0 +1,9 @@
+requests
+lxml
+beautifulsoup4
+pandas
+datetime
+python-csv
+#imewlconverter https://github.com/gshang2017/rime-dict/releases
+#opencc
+#dotnet-sdk-6.0
