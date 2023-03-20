@@ -1,0 +1,76 @@
+name: rime_dict
+
+on:
+  push:
+    paths:
+    - '.github/workflows/rime_dict.yml'
+  workflow_dispatch:
+
+env:
+  IMEWLCONVERTER_VER: 3.0.0
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+
+      - name: Setup .NET Core
+        uses: actions/setup-dotnet@v3
+        with:
+          dotnet-version: 6.0.x
+
+      - name: set env
+        run: |
+          echo "NOW=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
+          echo "TAG_NAME=$(curl --silent https://api.github.com/repos/gshang2017/rime-dict/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')" >> $GITHUB_ENV
+
+      - name: Build
+        run: |
+          sudo apt-get update
+          sudo apt-get install wget python3 pip
+          wget -P /home/runner/work/rime-dict/rime-dict https://github.com/studyzy/imewlconverter/archive/refs/tags/v${{ env.IMEWLCONVERTER_VER }}.tar.gz
+          cd /home/runner/work/rime-dict/rime-dict/
+          tar -zxf /home/runner/work/rime-dict/rime-dict/v${{ env.IMEWLCONVERTER_VER }}.tar.gz
+          cd /home/runner/work/rime-dict/rime-dict/imewlconverter-${{ env.IMEWLCONVERTER_VER }}
+          sed -i 's/CodeType = CodeType.Pinyin;/CodeType = CodeType.Unknown;/'  ./src/ImeWlConverterCore/IME/Rime.cs
+          dotnet build ./src/ImeWlConverterCmd
+          cd /home/runner/work/rime-dict/rime-dict/imewlconverter-${{ env.IMEWLCONVERTER_VER }}/src/ImeWlConverterCmd/bin/Debug/net6.0
+          tar -zcf v${{ env.IMEWLCONVERTER_VER }}_imewlconverter_Linux_Mac.tar.gz *
+          cp -rf /home/runner/work/rime-dict/rime-dict/imewlconverter-${{ env.IMEWLCONVERTER_VER }}/src/ImeWlConverterCmd/bin/Debug/net6.0 /home/runner/work/rime-dict/rime-dict/imewlconverter
+          wget -P /home/runner/work/rime-dict/rime-dict https://github.com/gshang2017/rime-dict/releases/download/${{ env.TAG_NAME }}/dict.tar.gz
+          cd /home/runner/work/rime-dict/rime-dict/
+          tar -zxf dict.tar.gz
+          rm -rf dict.tar.gz
+          sudo pip install --upgrade setuptools==57.5.0
+          sudo pip install -r requirements.txt
+          python3 sogou_dict.py
+          python3 dict_frequency_ai.py
+          tar -zcf dict.tar.gz dict.db
+          export  SOGOU_OFFICIAL=True
+          export  SOGOU_SINGLE_FILE=True
+          export  SOGOU_OFFICIAL_TOTAL=True
+          export  TENGXUN_FREQ=True
+          export  ENGLISH_CHARACTER_ENCODING=True
+          export  LEN_NUM=7
+          export  PREFIX_DICT_NAME=luna_pinyin_simp.
+          python3 rime_dict.py
+          cd /home/runner/work/rime-dict/rime-dict/output
+          tar -zcf rime-dict.txt.tar.gz *.txt
+          tar -zcf rime-dict.yaml.tar.gz *.yaml
+
+      - name: Release
+        uses: softprops/action-gh-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: ${{ env.NOW }}
+          name: ${{ env.NOW }}
+          draft: false
+          prerelease: false
+          files: |
+            /home/runner/work/rime-dict/rime-dict/dict.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict.yaml.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict.txt.tar.gz
+            /home/runner/work/rime-dict/rime-dict/imewlconverter-3.0.0/src/ImeWlConverterCmd/bin/Debug/net6.0/v${{ env.IMEWLCONVERTER_VER }}_imewlconverter_Linux_Mac.tar.gz
