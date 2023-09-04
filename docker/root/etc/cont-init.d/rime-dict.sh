@@ -72,6 +72,13 @@ env_name[41]=THUOCL
 env_name[42]=ENGLISH_DICT
 env_name[43]=ENGLISH_CHARACTER_ENCODING
 env_name[44]=ENGLISH_CHARACTER_ENCODING_COCA
+env_name[45]=NON_TENGXUN_DEL
+env_name[46]=TOTAL_OFFICIAL_NON_TENGXUN_DEL
+env_name[47]=WIKI_DICT
+env_name[48]=LETTERED_WORD_DICT
+env_name[49]=LETTERED_WORD_NON_DELIMITER
+env_name[50]=IMEWLCONVERTER
+env_name[51]=CHAIZI_DICT
 ENV_CHANGE=false
 for i in ${env_name[*]}; do
   if [ "$(cat '/usr/local/rime_dict/env_set.txt'|grep $i)" != "$(env|grep $i)" ]; then

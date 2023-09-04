@@ -1,20 +1,23 @@
-FROM mcr.microsoft.com/dotnet/runtime:6.0-alpine
+FROM mcr.microsoft.com/dotnet/runtime:6.0-alpine3.17
 
-ARG S6_VER=3.1.4.2
+ARG S6_VER=3.1.5.0
 
 ENV TZ=Asia/Shanghai
 ENV SOGOU_DICT_UPDATE=false
 ENV RIME_DICT_UPDATE=true
 ENV RIME_DICT_UPDATE_AUTO=false
-ENV PREFIX_DICT_NAME=luna_pinyin.
+ENV PREFIX_DICT_NAME=luna_pinyin_simp.
 ENV RIME_CONVERTER_TYPE=pinyin
 ENV RIME_OPENCC=False
 ENV RIME_OPENCC_CONFIG=s2t.json
 ENV TENGXUN_FREQ=True
+ENV NON_TENGXUN_DEL=False
+ENV TOTAL_OFFICIAL_NON_TENGXUN_DEL=False
 ENV POLYPHONIC=True
 ENV ORDER=True
 ENV LEN_NUM=7
 ENV NO_FINALS_FIX=True
+ENV IMEWLCONVERTER=False
 ENV SOGOU_DICT=True
 ENV SOGOU_OFFICIAL=True
 ENV SOGOU_SINGLE_FILE=True
@@ -47,6 +50,10 @@ ENV GOOGLEPINYIN=True
 ENV GOOGLEPINYIN_PHRASE=True
 ENV GOOGLEPINYIN_SINGLE=True
 ENV THUOCL=True
+ENV WIKI_DICT=False
+ENV LETTERED_WORD_DICT=False
+ENV LETTERED_WORD_NON_DELIMITER=False
+ENV CHAIZI_DICT=False
 ENV ENGLISH_DICT=False
 ENV ENGLISH_CHARACTER_ENCODING=False
 ENV ENGLISH_CHARACTER_ENCODING_COCA=True
@@ -60,7 +67,7 @@ RUN apk add --no-cache bash ca-certificates tzdata python3 py3-pip py3-requests 
 # use_2to3 is invalid
 && pip3 install --no-cache-dir setuptools==57.5.0 \
 && pip3 install --no-cache-dir datetime python-csv \
-&& apk add --no-cache wqy-zenhei opencc --repository http://dl-2.alpinelinux.org/alpine/edge/testing \
+&& apk add --no-cache font-wqy-zenhei opencc --repository https://dl-2.alpinelinux.org/alpine/edge/testing \
 # install s6-overlay
 && if [ "$(uname -m)" = "x86_64" ];then s6_arch=x86_64;elif [ "$(uname -m)" = "aarch64" ];then s6_arch=aarch64;elif [ "$(uname -m)" = "armv7l" ];then s6_arch=arm; fi \
 && wget -P /tmp https://github.com/just-containers/s6-overlay/releases/download/v${S6_VER}/s6-overlay-noarch.tar.xz \
