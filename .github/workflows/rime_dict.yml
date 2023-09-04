@@ -34,7 +34,9 @@ jobs:
           cd /home/runner/work/rime-dict/rime-dict/
           tar -zxf /home/runner/work/rime-dict/rime-dict/v${{ env.IMEWLCONVERTER_VER }}.tar.gz
           cd /home/runner/work/rime-dict/rime-dict/imewlconverter-${{ env.IMEWLCONVERTER_VER }}
-          sed -i 's/CodeType = CodeType.Pinyin;/CodeType = CodeType.Unknown;/'  ./src/ImeWlConverterCore/IME/Rime.cs
+          sed -i 's/CodeType = CodeType.Pinyin;/CodeType = CodeType.Unknown;/' ./src/ImeWlConverterCore/IME/Rime.cs
+          #多音字
+          sed -i "1i\'cheng'du 成都" ./src/ImeWlConverterCore/Resources/WordPinyin.txt
           dotnet build ./src/ImeWlConverterCmd
           cd /home/runner/work/rime-dict/rime-dict/imewlconverter-${{ env.IMEWLCONVERTER_VER }}/src/ImeWlConverterCmd/bin/Debug/net6.0
           tar -zcf v${{ env.IMEWLCONVERTER_VER }}_imewlconverter_Linux_Mac.tar.gz *
@@ -45,20 +47,33 @@ jobs:
           rm -rf dict.tar.gz
           sudo pip install --upgrade setuptools==57.5.0
           sudo pip install -r requirements.txt
-          python3 sogou_dict.py
-          python3 dict_frequency_ai.py
           tar -zcf dict.tar.gz dict.db
-          export  SOGOU_OFFICIAL=True
-          export  SOGOU_SINGLE_FILE=True
-          export  SOGOU_OFFICIAL_TOTAL=True
-          export  TENGXUN_FREQ=True
-          export  ENGLISH_CHARACTER_ENCODING=True
-          export  LEN_NUM=7
-          export  PREFIX_DICT_NAME=luna_pinyin_simp.
+          export SOGOU_OFFICIAL=True
+          export SOGOU_SINGLE_FILE=True
+          export SOGOU_OFFICIAL_TOTAL=True
+          export TENGXUN_FREQ=True
+          export ENGLISH_DICT=True
+          export ENGLISH_CHARACTER_ENCODING=True
+          export LEN_NUM=7
+          export PREFIX_DICT_NAME=luna_pinyin_simp.
+          export LETTERED_WORD_DICT=True
+          export WIKI_DICT=True
+          export CHAIZI_DICT=True
+          export IMEWLCONVERTER=False
           python3 rime_dict.py
           cd /home/runner/work/rime-dict/rime-dict/output
           tar -zcf rime-dict.txt.tar.gz *.txt
           tar -zcf rime-dict.yaml.tar.gz *.yaml
+          #仅含有腾讯词频的词库(搜狗推荐词库除外)，合并搜狗非推荐词库
+          rm -rf /home/runner/work/rime-dict/rime-dict/output/*.txt
+          rm -rf /home/runner/work/rime-dict/rime-dict/output/*.yaml
+          cd /home/runner/work/rime-dict/rime-dict/
+          export SOGOU_SINGLE_FILE=False
+          export NON_TENGXUN_DEL=True
+          python3 rime_dict.py
+          cd /home/runner/work/rime-dict/rime-dict/output
+          tar -zcf rime-dict-non-tengxun.txt.tar.gz *.txt
+          tar -zcf rime-dict-non-tengxun.yaml.tar.gz *.yaml
 
       - name: Release
         uses: softprops/action-gh-release@v1
@@ -73,4 +88,6 @@ jobs:
             /home/runner/work/rime-dict/rime-dict/dict.tar.gz
             /home/runner/work/rime-dict/rime-dict/output/rime-dict.yaml.tar.gz
             /home/runner/work/rime-dict/rime-dict/output/rime-dict.txt.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun.yaml.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun.txt.tar.gz
             /home/runner/work/rime-dict/rime-dict/imewlconverter-3.0.0/src/ImeWlConverterCmd/bin/Debug/net6.0/v${{ env.IMEWLCONVERTER_VER }}_imewlconverter_Linux_Mac.tar.gz

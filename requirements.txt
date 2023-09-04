@@ -1,9 +1,11 @@
 requests
 lxml
 beautifulsoup4
+fake_useragent
 pandas
 datetime
 python-csv
+pypinyin
 #imewlconverter https://github.com/gshang2017/rime-dict/releases
 #opencc
 #dotnet-sdk-6.0

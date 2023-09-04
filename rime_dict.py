@@ -11,13 +11,15 @@ import datetime
 import shutil
 import csv
 import fileinput
+import re
+from pypinyin import pinyin, lazy_pinyin, Style
 
 #创建输出目录
 if not os.path.exists('./output'):
     os.mkdir('./output')
 
 #转换格式
-def imewlconverter(name):
+def converter(name):
     scel_output_file = name + '.dict.yaml'
     if name.find("basic") != -1:
         rime_freq = os.getenv('RIME_BASIC_FREQ',default = 3)
@@ -25,20 +27,39 @@ def imewlconverter(name):
         rime_freq = os.getenv('RIME_OFFICIAL_FREQ',default = 2)
     else:
         rime_freq =  os.getenv('RIME_UNOFFICIAL_FREQ',default = 1)
-    if tengxun_freq:
-        command='''dotnet ../imewlconverter/ImeWlConverterCmd.dll -i:rime %s -ft:"rm:eng|rm:num|rm:space|rm:pun" -o:self "%s"  "-f:213 \tnyyy" -ct:%s ''' % (name+".txt",scel_output_file,rime_converter_type)
+    if imewlconverter_set:
+        #imewlconverter转换
+        if tengxun_freq:
+            command='''dotnet ../imewlconverter/ImeWlConverterCmd.dll -i:rime %s -ft:"rm:eng|rm:num|rm:space|rm:pun" -o:self "%s"  "-f:213 \tnyyy" -ct:%s ''' % (name+".txt",scel_output_file,rime_converter_type)
+        else:
+            command='''dotnet ../imewlconverter/ImeWlConverterCmd.dll -i:word %s -r:%s -ft:"rm:eng|rm:num|rm:space|rm:pun" -o:rime "%s"  -ct:%s ''' % (name+".txt",rime_freq,scel_output_file,rime_converter_type)
+        attempts = 0
+        while attempts < 4:
+            try:
+                if os.path.exists(scel_output_file):
+                    break
+                os.system(command)
+            except:
+                attempts += 1
+                if attempts==4:
+                    os._exit(0)
     else:
-        command='''dotnet ../imewlconverter/ImeWlConverterCmd.dll -i:word %s -r:%s -ft:"rm:eng|rm:num|rm:space|rm:pun" -o:rime "%s"  -ct:%s ''' % (name+".txt",rime_freq,scel_output_file,rime_converter_type)
-    attempts = 0
-    while attempts < 4:
-        try:
-            if os.path.exists(scel_output_file):
-                break
-            os.system(command)
-        except:
-            attempts += 1
-            if attempts==4:
-                os._exit(0)
+        #pypinyin转换
+        fr1 = open(name+".txt", 'r',encoding='UTF-8')
+        fr2 = open(scel_output_file, 'w',encoding='UTF-8')
+        for line in fr1.readlines():
+            if tengxun_freq:
+                tmp_data = line.replace("\n","").split("\t", 2)
+                tmp_pinyin = str(lazy_pinyin(tmp_data[0], errors=lambda x: 'delete')).replace("'","").replace("[","").replace("]","").replace(",","")
+                if tmp_pinyin.find('delete') == -1:
+                    fr2.write(tmp_data[0]+'	'+tmp_pinyin+'	'+tmp_data[2]+'\n')
+            else:
+                tmp_data = line.replace("\n","")
+                tmp_pinyin = str(lazy_pinyin(tmp_data, errors=lambda x: 'delete')).replace("'","").replace("[","").replace("]","").replace(",","")
+                if tmp_pinyin.find('delete') == -1:
+                    fr2.write(tmp_data+'	'+tmp_pinyin+'	'+str(rime_freq)+'\n')
+        fr1.close()
+        fr2.close()
 
 #拆分文件
 def split_file(name):
@@ -72,6 +93,24 @@ def merge_file(filename_1, filename_2):
         for i in f2:
             f1.write(i)
 
+#词排序
+def order(filename_1):
+    cursor.execute("DROP TABLE IF EXISTS tmp_order" )
+    cursor.execute("CREATE TABLE IF NOT EXISTS tmp_order (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+    fr3 = open(filename_1+".dict.yaml", 'r',encoding='UTF-8')
+    for line in fr3.readlines():
+        tmp_data = line.replace("\n","").split("\t", 2)
+        if int(len_num_set):
+            if len(tmp_data[0]) <= int(len_num_set):
+                cursor.execute("insert into tmp_order values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
+        else:
+            cursor.execute("insert into tmp_order values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
+    dict_db.commit()
+    fr3.close()
+    table_order_dict = sql.read_sql("SELECT * FROM tmp_order GROUP BY length(dict),dict,dict_code" , dict_db)
+    table_order_dict.to_csv(filename_1+".dict.yaml",header=0,sep='\t',index=False,float_format='%.0f')
+    cursor.execute("DROP TABLE IF EXISTS tmp_order" )
+
 #输出rime文件
 def rime_yaml_output(filename_1,filename_2):
 
@@ -81,14 +120,23 @@ def rime_yaml_output(filename_1,filename_2):
 #
 '''
     if filename_1.find("basic_dict") != -1:
-        data2 = "#自定义基础词汇"+"\n"
-        data3 = "#"
+        data2 = "# 自定义基础词汇"+"\n"
+        data3 = "# "
     elif filename_1.find("english_dict") != -1:
-        data2 = "#自定义英语词汇"+"\n"
-        data3 = "#"
+        data2 = "# 自定义英语词汇"+"\n"
+        data3 = "# "
+    elif filename_1.find("wiki_dict") != -1:
+        data2 = "# 维基百科词汇"+"\n"
+        data3 = "# "
+    elif filename_1.find("lettered_word_dict") != -1:
+        data2 = "# 字母词词汇"+"\n"
+        data3 = "# "
+    elif filename_1.find("chaizi_dict") != -1:
+        data2 = "# 拆字词汇"+"\n"
+        data3 = "# "
     else:
-        data2 = "#sogou输入法("+filename_2+")词汇"+"\n"
-        data3 = "#"+sogou_nav_url
+        data2 = "# sogou输入法("+filename_2+")词汇"+"\n"
+        data3 = "# "+sogou_nav_url
     data4 = '''
 # 部署位置：
 # ~/.config/ibus/rime  (Linux ibus)
@@ -133,35 +181,71 @@ columns:
 #输出原始文件
 def conver_file(tablename,filename_1,filename_2):
     yaml_dict_name = filename_1+".txt"
-    tablename.to_csv(yaml_dict_name,header=0,sep='\t',index=False)
-    if tengxun_freq and yaml_dict_name.find("basic_dict") == -1:
-        cursor.execute("CREATE TABLE IF NOT EXISTS tmp_tengxun_freq (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
-        if yaml_dict_name.find(".official") != -1:
-            rime_freq = os.getenv('RIME_OFFICIAL_FREQ',default = 2)
-        else:
-            rime_freq =  os.getenv('RIME_UNOFFICIAL_FREQ',default = 1)
-        fr1 = open(yaml_dict_name, 'r',encoding='UTF-8')
-        for line in fr1.readlines():
-            tmp_data = line.replace("\n","").split("\t", 1)
-            if tmp_data[1] == '0':
-                cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',rime_freq))
+    tablename.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
+    if yaml_dict_name.find("basic_dict") == -1 and yaml_dict_name.find("english_dict") == -1 and yaml_dict_name.find("lettered_word_dict") == -1:
+        if tengxun_freq:
+            cursor.execute("CREATE TABLE IF NOT EXISTS tmp_tengxun_freq (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+            if yaml_dict_name.find(".official") != -1:
+                rime_freq = os.getenv('RIME_OFFICIAL_FREQ',default = 2)
             else:
-                cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',tmp_data[1]))
-        dict_db.commit()
-        fr1.close()
-        if basic_dict_set:
-            table_freq = sql.read_sql("SELECT * FROM tmp_tengxun_freq a WHERE a.dict NOT IN (SELECT DISTINCT b.dict FROM tmp_basic_dict b )  GROUP BY dict" , dict_db)
+                rime_freq =  os.getenv('RIME_UNOFFICIAL_FREQ',default = 1)
+            fr1 = open(yaml_dict_name, 'r',encoding='UTF-8')
+            for line in fr1.readlines():
+                tmp_data = line.replace("\n","").split("\t", 1)
+                if tmp_data[1] == '0':
+                    if yaml_dict_name.find(".official") != -1:
+                        if not total_official_non_tengxun_del:
+                            cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',rime_freq))
+                    else:
+                        if not non_tengxun_del:
+                            cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',rime_freq))
+                        else:
+                            tmp_env_name = yaml_dict_name.split(".", 2)
+                            env_name = tmp_env_name[1] + "_non_tengxun_del"
+                            del_env_set = os.getenv(env_name.upper(), default = 'True') == 'True'
+                            if not del_env_set:
+                                cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',rime_freq))
+                else:
+                    cursor.execute("insert into tmp_tengxun_freq values('%s','%s','%s')"%(tmp_data[0],'',tmp_data[1]))
+            dict_db.commit()
+            fr1.close()
+            if basic_dict_set:
+                table_freq = sql.read_sql("SELECT * FROM tmp_tengxun_freq a WHERE a.dict NOT IN (SELECT DISTINCT b.dict FROM tmp_all_dict b )  GROUP BY dict" , dict_db)
+            else:
+                table_freq = sql.read_sql("SELECT * FROM tmp_tengxun_freq  GROUP BY dict" , dict_db)
+            table_freq.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
+            cursor.execute("DROP TABLE IF EXISTS tmp_tengxun_freq" )
         else:
-            table_freq = sql.read_sql("SELECT * FROM tmp_tengxun_freq  GROUP BY dict" , dict_db)
-        table_freq.to_csv(yaml_dict_name,header=0,sep='\t',index=False)
-        cursor.execute("DROP TABLE IF EXISTS tmp_tengxun_freq" )
+            cursor.execute("CREATE TABLE IF NOT EXISTS tmp_non_tengxun_freq (dict TEXT)" )
+            fr1 = open(yaml_dict_name, 'r',encoding='UTF-8')
+            for line in fr1.readlines():
+                tmp_data = line.replace("\n","")
+                cursor.execute("insert into tmp_non_tengxun_freq values('%s')"%(tmp_data))
+            dict_db.commit()
+            fr1.close()
+            if basic_dict_set:
+                table_freq = sql.read_sql("SELECT dict FROM tmp_non_tengxun_freq a WHERE a.dict NOT IN (SELECT DISTINCT b.dict FROM tmp_all_dict b )  GROUP BY dict" , dict_db)
+            else:
+                table_freq = sql.read_sql("SELECT DISTINCT dict FROM tmp_non_tengxun_freq" , dict_db)
+            table_freq.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
+            cursor.execute("DROP TABLE IF EXISTS tmp_non_tengxun_freq" )
+
+    #插入词库到tmp_all_dict表
+    if yaml_dict_name.find("polyphonic_dict") == -1 and yaml_dict_name.find("english_dict") == -1 and yaml_dict_name.find("lettered_word_dict") == -1:
+        fr_all = open(yaml_dict_name, 'r',encoding='UTF-8')
+        for line in fr_all.readlines():
+            tmp_data = line.replace("\n","").split("\t", 1)
+            cursor.execute("insert into tmp_all_dict values('%s')"%(tmp_data[0]))
+        fr_all.close()
+
+    #大于30M拆分文件
     txt_size = os.path.getsize(filename_1+".txt")
     if txt_size > 30000000:
         split_file(filename_1)
     #转换sql导出文件
     if os.path.exists("part1."+filename_1+".txt"):
-        imewlconverter("part1."+filename_1)
-        imewlconverter("part2."+filename_1)
+        converter("part1."+filename_1)
+        converter("part2."+filename_1)
         merge_file("part1."+filename_1+".dict.yaml", "part2."+filename_1+".dict.yaml")
         shutil.copy("part1."+filename_1+".dict.yaml",filename_1+".dict.yaml")
         os.remove("part1."+filename_1+".txt")
@@ -169,11 +253,12 @@ def conver_file(tablename,filename_1,filename_2):
         os.remove("part1."+filename_1+".dict.yaml")
         os.remove("part2."+filename_1+".dict.yaml")
     else:
-        imewlconverter(filename_1)
+        converter(filename_1)
+    #多音字修正
     if polyphonic_set and yaml_dict_name.find("basic_dict") != -1:
         basic_freq = os.getenv('RIME_BASIC_FREQ',default = 3)
         table_polyphonic_dict = sql.read_sql("SELECT * FROM polyphonic_all a WHERE a.dict IN (SELECT b.dict FROM tmp_basic_dict b) GROUP BY dict,dict_code" , dict_db)
-        table_polyphonic_dict.to_csv('polyphonic_dict.txt',header=0,sep='\t',index=False)
+        table_polyphonic_dict.to_csv('polyphonic_dict.txt',header=0,sep='\t',index=False,float_format='%.0f')
         fr1 = open('polyphonic_dict.txt', 'r',encoding='UTF-8')
         for line in fr1.readlines():
             tmp_data = line.replace("\n","").split("\t", 2)
@@ -206,7 +291,7 @@ def conver_file(tablename,filename_1,filename_2):
                 cursor.execute("insert into tmp_polyphonic values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
                 if len(tmp_data[0]) == 1:
                     cursor.execute("insert into tmp_polyphonic_fix values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
-        #无韵母多音字修正 no_finals
+        #无韵母修正 no_finals
         if no_finals_fix_set:
             no_finals = ['m','n','hm','ng','hng']
             for line in no_finals:
@@ -219,23 +304,9 @@ def conver_file(tablename,filename_1,filename_2):
         dict_db.commit()
         fr2.close()
         table_polyphonic_dict_new = sql.read_sql("SELECT * FROM tmp_polyphonic GROUP BY dict,dict_code" , dict_db)
-        table_polyphonic_dict_new.to_csv(filename_1+".dict.yaml",header=0,sep='\t',index=False)
+        table_polyphonic_dict_new.to_csv(filename_1+".dict.yaml",header=0,sep='\t',index=False,float_format='%.0f')
     if order_set:
-        cursor.execute("DROP TABLE IF EXISTS tmp_order" )
-        cursor.execute("CREATE TABLE IF NOT EXISTS tmp_order (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
-        fr3 = open(filename_1+".dict.yaml", 'r',encoding='UTF-8')
-        for line in fr3.readlines():
-            tmp_data = line.replace("\n","").split("\t", 2)
-            if int(len_num_set):
-                if len(tmp_data[0]) <= int(len_num_set):
-                    cursor.execute("insert into tmp_order values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
-            else:
-                cursor.execute("insert into tmp_order values('%s','%s','%s')"%(tmp_data[0],tmp_data[1],tmp_data[2]))
-        dict_db.commit()
-        fr3.close()
-        table_order_dict = sql.read_sql("SELECT * FROM tmp_order GROUP BY length(dict),dict,dict_code" , dict_db)
-        table_order_dict.to_csv(filename_1+".dict.yaml",header=0,sep='\t',index=False)
-        cursor.execute("DROP TABLE IF EXISTS tmp_order" )
+        order(filename_1)
     rime_yaml_output(filename_1,filename_2)
 #指定工作目录
 os.chdir('./output')
@@ -249,8 +320,13 @@ rime_converter_type = os.getenv('RIME_CONVERTER_TYPE',default = 'pinyin')
 rime_opencc = os.getenv('RIME_OPENCC',default = 'False')== 'True'
 rime_opencc_config = os.getenv('RIME_OPENCC_CONFIG',default = 's2t.json')
 tengxun_freq = os.getenv('TENGXUN_FREQ',default = 'False') == 'True'
+non_tengxun_del = os.getenv('NON_TENGXUN_DEL',default = 'False') == 'True'
+total_official_non_tengxun_del = os.getenv('TOTAL_OFFICIAL_NON_TENGXUN_DEL',default = 'False') == 'True'
 basic_dict_set = os.getenv('BASIC_DICT',default = 'True') == 'True'
-english_dict_set = os.getenv('ENGLISH_DICT',default = 'True') == 'True'
+chaizi_dict_set = os.getenv('CHAIZI_DICT',default = 'False') == 'True'
+english_dict_set = os.getenv('ENGLISH_DICT',default = 'False') == 'True'
+wiki_dict_set = os.getenv('WIKI_DICT',default = 'False') == 'True'
+lettered_word_dict_set = os.getenv('LETTERED_WORD_DICT',default = 'False') == 'True'
 chinese_character_encoding_set = os.getenv('CHINESE_CHARACTER_ENCODING',default = 'True') == 'True'
 english_character_encoding_set = os.getenv('ENGLISH_CHARACTER_ENCODING',default = 'False') == 'True'
 corpus_set = os.getenv('CORPUS',default = 'True') == 'True'
@@ -260,23 +336,37 @@ polyphonic_set = os.getenv('POLYPHONIC',default = 'True') == 'True'
 order_set = os.getenv('ORDER',default = 'True') == 'True'
 len_num_set = os.getenv('LEN_NUM',default = '0')
 no_finals_fix_set = os.getenv('NO_FINALS_FIX',default = 'True') == 'True'
+lettered_word_non_delimiter_set = os.getenv('LETTERED_WORD_NON_DELIMITER',default = 'False') == 'True'
+imewlconverter_set = os.getenv('IMEWLCONVERTER',default = 'True') == 'True'
+
 #创建表格
 dict_db = sqlite3.connect('../dict.db')
 cursor = dict_db.cursor()
 cursor.execute("DROP TABLE IF EXISTS tmp_1" )
 cursor.execute("DROP TABLE IF EXISTS tmp_2" )
 cursor.execute("DROP TABLE IF EXISTS tmp_tengxun_freq" )
+cursor.execute("DROP TABLE IF EXISTS tmp_non_tengxun_freq" )
 cursor.execute("DROP TABLE IF EXISTS tmp_basic_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_chaizi_dict" )
 cursor.execute("DROP TABLE IF EXISTS tmp_english_dict" )
 cursor.execute("DROP TABLE IF EXISTS tmp_polyphonic" )
 cursor.execute("DROP TABLE IF EXISTS tmp_polyphonic_fix" )
+cursor.execute("DROP TABLE IF EXISTS tmp_wiki_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_lettered_word_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_all_dict" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_1 (dict TEXT,dict_name TEXT,dict_frequency INTEGER)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_2 (dict TEXT,dict_frequency INTEGER)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_tengxun_freq (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+cursor.execute("CREATE TABLE IF NOT EXISTS tmp_non_tengxun_freq (dict TEXT)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_basic_dict (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+cursor.execute("CREATE TABLE IF NOT EXISTS tmp_chaizi_dict (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_english_dict (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_polyphonic (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
 cursor.execute("CREATE TABLE IF NOT EXISTS tmp_polyphonic_fix (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+cursor.execute("CREATE TABLE IF NOT EXISTS tmp_wiki_dict (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+cursor.execute("CREATE TABLE IF NOT EXISTS tmp_lettered_word_dict (dict TEXT,dict_code TEXT,dict_frequency INTEGER)" )
+cursor.execute("CREATE TABLE IF NOT EXISTS tmp_all_dict (dict TEXT)" )
+
 #基础词库
 if basic_dict_set:
     #谷歌拼音
@@ -326,6 +416,41 @@ if basic_dict_set:
     filename_1 = prefix_dict_name+'basic_dict'
     filename_2 = '自定义基础词汇'
     conver_file(table_basic_dict,filename_1,filename_2)
+
+#拆字词库
+if chaizi_dict_set:
+    cursor.execute("SELECT * FROM chaizi" )
+    data_chaizi = cursor.fetchall()
+    for i in data_chaizi:
+        chaizi_nav_name = i[0]
+        chaizi_dict_table_name = i[1]
+        chaizi_env_set = os.getenv(chaizi_dict_table_name.upper(), default = 'True') == 'True'
+        if chaizi_env_set:
+            cursor.execute("insert into tmp_chaizi_dict(dict,dict_code,dict_frequency) select dict,dict_code,dict_frequency from '%s' GROUP BY dict" %chaizi_dict_table_name )
+    table_chaizi_dict = sql.read_sql("SELECT dict,dict_code,dict_frequency FROM tmp_chaizi_dict a WHERE a.dict IN (SELECT b.dict FROM tmp_basic_dict b) GROUP BY dict" , dict_db)
+    filename_1 = prefix_dict_name+'chaizi_dict'
+    filename_2 = '拆字词汇'
+    yaml_dict_name = filename_1+".txt"
+    table_chaizi_dict.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
+    if tengxun_freq:
+        file_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
+        for line in fileinput.input(yaml_dict_name):
+            line_a = line.replace("\n","")
+            line_b=line_a.replace("\n","").split("\t", 2)
+            if not re.match(r"^[\t]",line_a):
+                if line_b[2] == '0':
+                    file_out.write(line_b[0]+'	'+line_b[1]+'	1\n')
+                else:
+                    file_out.write(line_b[0]+'	'+line_b[1]+'	'+line_b[2]+'\n')
+    else:
+        file_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
+        for line in fileinput.input(yaml_dict_name):
+            line_a = line.replace("\n","")
+            if not re.match(r"^[\t]",line_a):
+                file_out.write(line_a+'	1\n')
+    file_out.close()
+    rime_yaml_output(filename_1,filename_2)
+
 #英语词库
 if english_dict_set:
     #英语字符
@@ -344,15 +469,27 @@ if english_dict_set:
         table_english_dict = sql.read_sql("SELECT dict,dict_code FROM tmp_english_dict GROUP BY dict" , dict_db)
     filename_1 = 'english_dict'
     filename_2 = '自定义英语词汇'
-    yaml_dict_name = filename_1+".dict.yaml"
+    yaml_dict_name = filename_1+".txt"
     table_english_dict.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
-    if not tengxun_freq:
-        file_out = open(yaml_dict_name, 'w',encoding='UTF-8')
+    if tengxun_freq:
+        file_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
         for line in fileinput.input(yaml_dict_name):
-            line = line.split()
-            file_out.write(line[0]+'	1\n')
-        file_out.close()
+            line_a = line.replace("\n","")
+            line_b=line_a.replace("\n","").split("\t", 2)
+            if not re.match(r"^[\t]",line_a):
+                if line_b[2] == '0':
+                    file_out.write(line_b[0]+'	'+line_b[1]+'	1\n')
+                else:
+                    file_out.write(line_b[0]+'	'+line_b[1]+'	'+line_b[2]+'\n')
+    else:
+        file_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
+        for line in fileinput.input(yaml_dict_name):
+            line_a = line.replace("\n","")
+            if not re.match(r"^[\t]",line_a):
+                file_out.write(line_a+'	1\n')
+    file_out.close()
     rime_yaml_output(filename_1,filename_2)
+
 #搜狗词库
 if sogou_dict_set:
     cursor.execute("SELECT * FROM sogou " )
@@ -441,14 +578,93 @@ if sogou_dict_set:
             conver_file(table_1,filename_1,filename_2)
             if sogou_official:
                 conver_file(table_2,filename_3,filename_4)
+
+#wiki
+if wiki_dict_set:
+    cursor.execute("SELECT * FROM wiki " )
+    data_wiki = cursor.fetchall()
+    for i in data_wiki:
+        wiki_nav_name = i[0]
+        wiki_dict_table_name = i[1]
+        wiki_env_set = os.getenv(wiki_dict_table_name.upper(), default = 'True') == 'True'
+        if wiki_env_set:
+            cursor.execute("insert into tmp_wiki_dict(dict,dict_frequency) select dict,dict_frequency from '%s' GROUP BY dict" %wiki_dict_table_name )
+    if tengxun_freq:
+        table_wiki_dict = sql.read_sql("SELECT dict,dict_frequency FROM tmp_wiki_dict GROUP BY dict" , dict_db)
+    else:
+        table_wiki_dict = sql.read_sql("SELECT DISTINCT dict FROM tmp_wiki_dict", dict_db)
+    filename_1 = prefix_dict_name+'wiki_dict'
+    filename_2 = '维基百科词汇'
+    conver_file(table_wiki_dict,filename_1,filename_2)
+
+#字母词
+if lettered_word_dict_set:
+    cursor.execute("SELECT * FROM lettered_word " )
+    data_lettered_word = cursor.fetchall()
+    for i in data_lettered_word:
+        lettered_word_nav_name = i[0]
+        lettered_word_dict_table_name = i[1]
+        lettered_word_env_set = os.getenv(lettered_word_dict_table_name.upper(), default = 'True') == 'True'
+        if lettered_word_env_set:
+            cursor.execute("insert into tmp_lettered_word_dict(dict,dict_code,dict_frequency) select dict,dict_code,dict_frequency from '%s' GROUP BY dict" %lettered_word_dict_table_name )
+    if tengxun_freq:
+        table_lettered_word_dict = sql.read_sql("SELECT * FROM tmp_lettered_word_dict GROUP BY dict" , dict_db)
+    else:
+        table_lettered_word_dict = sql.read_sql("SELECT dict,dict_code FROM tmp_lettered_word_dict GROUP BY dict", dict_db)
+    filename_1 = prefix_dict_name+'lettered_word_dict'
+    filename_2 = '字母词词汇'
+    yaml_dict_name = filename_1+".txt"
+    table_lettered_word_dict.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
+    file_lettered_word_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
+    if tengxun_freq:
+        if lettered_word_non_delimiter_set:
+            for line in fileinput.input(yaml_dict_name):
+                line_a = line.replace("\n","")
+                if not re.match(r"^[\t]",line_a) and not re.match(r"(·|-)",line_a):
+                    file_lettered_word_out.write(line_a+'\n')
+        else:
+            shutil.copy(filename_1+".txt",filename_1+".dict.yaml")
+        file_lettered_word_out.close()
+        if non_tengxun_del:
+            lettered_word_dict_non_tengxun_del_set = os.getenv('LETTERED_WORD_DICT_NON_TENGXUN_DEL', default = 'True') == 'True'
+            if lettered_word_dict_non_tengxun_del_set:
+                shutil.copy(filename_1+".dict.yaml",filename_1+".txt")
+                file_lettered_word_non_tengxun_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
+                for line in fileinput.input(yaml_dict_name):
+                    line_a = line.replace("\n","")
+                    if not re.match(r"^[\t]",line_a):
+                        line_b=line_a.replace("\n","").split("\t", 2)
+                        if line_b[2] != '0':
+                            file_lettered_word_non_tengxun_out.write(line_b[0]+'	'+line_b[1]+'	'+line_b[2]+'\n')
+                file_lettered_word_non_tengxun_out.close()
+    else:
+        for line in fileinput.input(yaml_dict_name):
+            line_a = line.replace("\n","")
+            if not re.match(r"^[\t]",line_a):
+                #过滤带·及-分隔符词汇
+                if lettered_word_non_delimiter_set:
+                    if not re.match(r"(·|-)",line_a):
+                        file_lettered_word_out.write(line_a+'	1\n')
+                else:
+                    file_lettered_word_out.write(line_a+'	1\n')
+        file_lettered_word_out.close()
+    if order_set:
+        order(filename_1)
+    rime_yaml_output(filename_1,filename_2)
+
 #删除表格
 cursor.execute("DROP TABLE IF EXISTS tmp_1" )
 cursor.execute("DROP TABLE IF EXISTS tmp_2" )
 cursor.execute("DROP TABLE IF EXISTS tmp_tengxun_freq" )
+cursor.execute("DROP TABLE IF EXISTS tmp_non_tengxun_freq" )
 cursor.execute("DROP TABLE IF EXISTS tmp_basic_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_chaizi_dict" )
 cursor.execute("DROP TABLE IF EXISTS tmp_english_dict" )
 cursor.execute("DROP TABLE IF EXISTS tmp_polyphonic" )
 cursor.execute("DROP TABLE IF EXISTS tmp_polyphonic_fix" )
+cursor.execute("DROP TABLE IF EXISTS tmp_wiki_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_lettered_word_dict" )
+cursor.execute("DROP TABLE IF EXISTS tmp_all_dict" )
 dict_db.commit()
 cursor.execute("VACUUM" )
 cursor.close()

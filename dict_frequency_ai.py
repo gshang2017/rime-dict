@@ -18,11 +18,16 @@ for i in data_table_name:
                 continue
             elif i[0] == "english_character_encoding" :
                 tengxun_ai_name = "tengxun_ai_english"
+            elif i[0] == "lettered_word" :
+                tengxun_ai_name = "tengxun_ai_split_8"
             elif len(k[0].encode('utf-8').decode("utf-8-sig")) > 6:
                 tengxun_ai_name = "tengxun_ai_split_7"
             else:
                 tengxun_ai_name = "tengxun_ai_split_"+str(len(k[0].encode('utf-8').decode("utf-8-sig")))
-            cursor.execute("SELECT dict_frequency FROM %s  WHERE dict='%s' LIMIT 1 " %(tengxun_ai_name,k[0].encode('utf-8').decode("utf-8-sig")))
+            if i[0] == "lettered_word" :
+                cursor.execute("SELECT dict_frequency FROM %s  WHERE dict='%s' LIMIT 1 " %(tengxun_ai_name,k[0].encode('utf-8').decode("utf-8-sig").lower()))
+            else:
+                cursor.execute("SELECT dict_frequency FROM %s  WHERE dict='%s' LIMIT 1 " %(tengxun_ai_name,k[0].encode('utf-8').decode("utf-8-sig")))
             tengxun_freq_unm = cursor.fetchall()
             if len(tengxun_freq_unm) > 0:
                 dict_freq_num = tengxun_freq_unm[0][0]

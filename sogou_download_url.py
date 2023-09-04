@@ -9,6 +9,8 @@ import sqlite3
 import time
 import pytz
 from datetime import datetime
+from fake_useragent import UserAgent
+import random
 
 def download_sogou_url():
     os.chdir('./')
@@ -29,7 +31,9 @@ def download_sogou_url():
         dict_table_name = i[1]
         index_num = i[3]
         url='https://pinyin.sogou.com/dict/cate/index/' + str(index_num)
-        r = requests.get(url)
+        headers = {"user-agent": UserAgent().random}
+        time.sleep(random.randint(0,3))
+        r = requests.get(url,headers=headers)
         soup = BeautifulSoup(r.text,'lxml')
         for select_list_show in soup.find_all("div", {"id": "select_list_show"}):
             order_way_content =  select_list_show.find_all("div", {"class": "order_way_content"})
@@ -43,7 +47,8 @@ def download_sogou_url():
             #检查是否需要更新文件
             #检查最后一个词库
             url_end_check = 'https://pinyin.sogou.com' + str(order_way_num) + '/' + page_num
-            r_end_check = requests.get(url_end_check)
+            time.sleep(random.randint(0,3))
+            r_end_check = requests.get(url_end_check,headers=headers)
             soup_end_check = BeautifulSoup(r_end_check.text,'lxml')
             #细胞词名称
             detail_title_list_end_check = soup_end_check.find_all("div", {"class": "detail_title"})
@@ -53,7 +58,8 @@ def download_sogou_url():
             end_dict_name_len = len(cursor.fetchall())
             #检查第一个词库
             url_first_check = 'https://pinyin.sogou.com' + str(order_way_num) + '/' + '1'
-            r_first_check = requests.get(url_first_check)
+            time.sleep(random.randint(0,3))
+            r_first_check = requests.get(url_first_check,headers=headers)
             soup_first_check = BeautifulSoup(r_first_check.text,'lxml')
             #更新时间
             detail_title_list_first_check = soup_first_check.find_all("div", {"class": "detail_title"})
@@ -68,7 +74,8 @@ def download_sogou_url():
             if end_dict_name_len < 1 or first_dict_name_len < 1:
                 for j in range(1, int(page_num) + 1):
                     url2 = 'https://pinyin.sogou.com' + str(order_way_num) + '/' + str(j)
-                    r2 = requests.get(url2)
+                    time.sleep(random.randint(0,3))
+                    r2 = requests.get(url2,headers=headers)
                     soup2 = BeautifulSoup(r2.text,'lxml')
                     #细胞词名称
                     detail_title_list = soup2.find_all("div", {"class": "detail_title"})
