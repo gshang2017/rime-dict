@@ -67,7 +67,7 @@ RUN apk add --no-cache bash ca-certificates tzdata python3 py3-pip py3-requests 
 # use_2to3 is invalid
 && pip3 install --no-cache-dir setuptools==57.5.0 \
 && pip3 install --no-cache-dir datetime python-csv \
-&& apk add --no-cache font-wqy-zenhei opencc --repository https://dl-2.alpinelinux.org/alpine/edge/testing \
+&& apk add --no-cache font-wqy-zenhei opencc --repository https://dl-cdn.alpinelinux.org/alpine/edge/testing/ \
 # install s6-overlay
 && if [ "$(uname -m)" = "x86_64" ];then s6_arch=x86_64;elif [ "$(uname -m)" = "aarch64" ];then s6_arch=aarch64;elif [ "$(uname -m)" = "armv7l" ];then s6_arch=arm; fi \
 && wget -P /tmp https://github.com/just-containers/s6-overlay/releases/download/v${S6_VER}/s6-overlay-noarch.tar.xz \
