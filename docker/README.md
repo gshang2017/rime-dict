@@ -4,6 +4,10 @@
 
 * 自动生成带词频的rime输入法(拼音)使用文件(包含英语，基础，维基，搜狗等词库)。词频基于腾讯AI向量词库逆序生成。
 
+### GitHub:
+
+[https://github.com/gshang2017/rime-dict](https://github.com/gshang2017/rime-dict)
+
 ### 版本：
 
 |名称|版本|说明|

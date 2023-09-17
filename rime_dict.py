@@ -52,7 +52,10 @@ def converter(name):
                 tmp_data = line.replace("\n","").split("\t", 2)
                 tmp_pinyin = str(lazy_pinyin(tmp_data[0], errors=lambda x: 'delete')).replace("'","").replace("[","").replace("]","").replace(",","")
                 if tmp_pinyin.find('delete') == -1:
-                    fr2.write(tmp_data[0]+'	'+tmp_pinyin+'	'+tmp_data[2]+'\n')
+                    if tmp_data[2] == '0':
+                        fr2.write(tmp_data[0]+'	'+tmp_pinyin+'	'+str(rime_freq)+'\n')
+                    else:
+                        fr2.write(tmp_data[0]+'	'+tmp_pinyin+'	'+tmp_data[2]+'\n')
             else:
                 tmp_data = line.replace("\n","")
                 tmp_pinyin = str(lazy_pinyin(tmp_data, errors=lambda x: 'delete')).replace("'","").replace("[","").replace("]","").replace(",","")
@@ -615,20 +618,22 @@ if lettered_word_dict_set:
     filename_2 = '字母词词汇'
     yaml_dict_name = filename_1+".txt"
     table_lettered_word_dict.to_csv(yaml_dict_name,header=0,sep='\t',index=False,float_format='%.0f')
-    file_lettered_word_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
     if tengxun_freq:
         if lettered_word_non_delimiter_set:
+            file_lettered_word_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
             for line in fileinput.input(yaml_dict_name):
                 line_a = line.replace("\n","")
                 if not re.match(r"^[\t]",line_a) and not re.match(r"(·|-)",line_a):
                     file_lettered_word_out.write(line_a+'\n')
+            file_lettered_word_out.close()
         else:
             shutil.copy(filename_1+".txt",filename_1+".dict.yaml")
-        file_lettered_word_out.close()
         if non_tengxun_del:
             lettered_word_dict_non_tengxun_del_set = os.getenv('LETTERED_WORD_DICT_NON_TENGXUN_DEL', default = 'True') == 'True'
             if lettered_word_dict_non_tengxun_del_set:
-                shutil.copy(filename_1+".dict.yaml",filename_1+".txt")
+                if lettered_word_non_delimiter_set:
+                    #将上一步输出文件复制为待处理文件
+                    shutil.copy(filename_1+".dict.yaml",filename_1+".txt")
                 file_lettered_word_non_tengxun_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
                 for line in fileinput.input(yaml_dict_name):
                     line_a = line.replace("\n","")
@@ -637,7 +642,24 @@ if lettered_word_dict_set:
                         if line_b[2] != '0':
                             file_lettered_word_non_tengxun_out.write(line_b[0]+'	'+line_b[1]+'	'+line_b[2]+'\n')
                 file_lettered_word_non_tengxun_out.close()
+                #将上一步输出文件复制为txt
+                shutil.copy(filename_1+".dict.yaml",filename_1+".txt")
+        else:
+            #替换为0的词频
+            file_out = open(filename_1+".dict.yaml.bak", 'w',encoding='UTF-8')
+            for line in fileinput.input(filename_1+".dict.yaml"):
+                line_a = line.replace("\n","")
+                if not re.match(r"^[\t]",line_a):
+                    line_b=line_a.replace("\n","").split("\t", 2)
+                    if line_b[2] == '0':
+                        file_out.write(line_b[0]+'	'+line_b[1]+'	1\n')
+                    else:
+                        file_out.write(line_b[0]+'	'+line_b[1]+'	'+line_b[2]+'\n')
+            file_out.close()
+            shutil.copy(filename_1+".dict.yaml.bak",filename_1+".dict.yaml")
+            os.remove(filename_1+".dict.yaml.bak")
     else:
+        file_lettered_word_out = open(filename_1+".dict.yaml", 'w',encoding='UTF-8')
         for line in fileinput.input(yaml_dict_name):
             line_a = line.replace("\n","")
             if not re.match(r"^[\t]",line_a):

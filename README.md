@@ -15,7 +15,7 @@
 [https://github.com/gshang2017/rime-dict/releases](https://github.com/gshang2017/rime-dict/releases)
 
 * rime-dict.txt.tar.gz（原始文件）及rime-dict.yaml.tar.gz（词库文件）
-* non-tengxun版为自用词库仅含有腾讯词频的词(搜狗推荐词库除外)
+* non-tengxun-del版为自用词库仅含有腾讯词频的词(搜狗推荐词库除外)
 * 搜狗流行词库详见： [https://github.com/gshang2017/docker/tree/master/rime-sogou](https://github.com/gshang2017/docker/tree/master/rime-sogou)
 
 |文件名称|说明|

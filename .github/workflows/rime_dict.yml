@@ -2,8 +2,8 @@ name: rime_dict
 
 on:
   push:
-    paths:
-    - '.github/workflows/rime_dict.yml'
+    tags:
+      - '*'
   workflow_dispatch:
 
 env:
@@ -23,7 +23,6 @@ jobs:
 
       - name: set env
         run: |
-          echo "NOW=$(date +'%Y.%m.%d')" >> $GITHUB_ENV
           echo "TAG_NAME=$(curl --silent https://api.github.com/repos/gshang2017/rime-dict/releases/latest | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')" >> $GITHUB_ENV
 
       - name: Build
@@ -72,22 +71,20 @@ jobs:
           export NON_TENGXUN_DEL=True
           python3 rime_dict.py
           cd /home/runner/work/rime-dict/rime-dict/output
-          tar -zcf rime-dict-non-tengxun.txt.tar.gz *.txt
-          tar -zcf rime-dict-non-tengxun.yaml.tar.gz *.yaml
+          tar -zcf rime-dict-non-tengxun-del.txt.tar.gz *.txt
+          tar -zcf rime-dict-non-tengxun-del.yaml.tar.gz *.yaml
 
       - name: Release
         uses: softprops/action-gh-release@v1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ env.NOW }}
-          name: ${{ env.NOW }}
           draft: false
           prerelease: false
           files: |
             /home/runner/work/rime-dict/rime-dict/dict.tar.gz
             /home/runner/work/rime-dict/rime-dict/output/rime-dict.yaml.tar.gz
             /home/runner/work/rime-dict/rime-dict/output/rime-dict.txt.tar.gz
-            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun.yaml.tar.gz
-            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun.txt.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun-del.yaml.tar.gz
+            /home/runner/work/rime-dict/rime-dict/output/rime-dict-non-tengxun-del.txt.tar.gz
             /home/runner/work/rime-dict/rime-dict/imewlconverter-3.0.0/src/ImeWlConverterCmd/bin/Debug/net6.0/v${{ env.IMEWLCONVERTER_VER }}_imewlconverter_Linux_Mac.tar.gz
